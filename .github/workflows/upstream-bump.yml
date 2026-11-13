@@ -1,0 +1,33 @@
+name: upstream-bump
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump pinned upstream commit if ml_api changed
+        run: |
+          set -eu
+          OLD=$(sed -n 's/^ARG OBICO_SHA=\([0-9a-f]\{40\}\)$/\1/p' obico_ml_api/Dockerfile)
+          NEW=$(gh api repos/TheSpaghettiDetective/obico-server/commits/release --jq .sha)
+          [ -n "$OLD" ] && [ -n "$NEW" ] || { echo "could not read SHAs" >&2; exit 1; }
+          [ "$OLD" != "$NEW" ] || { echo "already current"; exit 0; }
+          CHANGED=$(gh api "repos/TheSpaghettiDetective/obico-server/compare/$OLD...$NEW" --jq '[.files[].filename | select(startswith("ml_api/"))] | length')
+          [ "$CHANGED" -gt 0 ] || { echo "no ml_api changes upstream"; exit 0; }
+          BR="bump-obico-${NEW%"${NEW#???????}"}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BR"
+          sed -i "s/$OLD/$NEW/g" obico_ml_api/Dockerfile NOTICE.md obico_ml_api/CHANGELOG.md
+          git commit -am "Bump upstream obico-server to $NEW"
+          git push origin "$BR"
+          gh pr create --title "Bump upstream obico-server to ${NEW%"${NEW#???????}"}" \
+            --body "Upstream ml_api changed ($CHANGED files). Compare: https://github.com/TheSpaghettiDetective/obico-server/compare/$OLD...$NEW. CI builds the image; review and merge."

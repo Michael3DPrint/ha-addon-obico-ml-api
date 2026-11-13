@@ -1,0 +1,19 @@
+name: Obico ML API
+version: "0.1.0"
+slug: obico_ml_api
+description: Official Obico failure-detection ML API (CPU, ONNX) for Home Assistant OS
+url: https://github.com/Michael3DPrint/ha-addon-obico-ml-api
+arch:
+  - amd64
+init: false
+startup: services
+boot: auto
+ports:
+  3333/tcp: 3333
+ports_description:
+  3333/tcp: Obico ML API (/p/ predict, /hc/ health)
+watchdog: http://[HOST]:[PORT:3333]/hc/
+options:
+  ml_api_token: ""
+schema:
+  ml_api_token: password(16,)
