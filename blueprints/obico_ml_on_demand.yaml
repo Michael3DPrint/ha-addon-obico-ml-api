@@ -1,0 +1,80 @@
+blueprint:
+  name: Obico ML API on demand
+  description: >-
+    Starts the Obico ML API add-on while any selected printer is printing and stops it
+    after all of them have been inactive for the stop delay. Needs Home Assistant 2024.10 or newer.
+  domain: automation
+  homeassistant:
+    min_version: 2024.10.0
+  source_url: https://github.com/Michael3DPrint/ha-addon-obico-ml-api/blob/main/blueprints/obico_ml_on_demand.yaml
+  input:
+    printers:
+      name: Printer status entities
+      description: One entity per printer that reports the print state (for example the Bambu Lab "print status" sensor).
+      selector:
+        entity:
+          multiple: true
+    active_states:
+      name: States that mean "printing"
+      description: While any printer is in one of these states the add-on keeps running. Pause is included so a paused print stays monitored.
+      default:
+        - running
+        - pause
+        - prepare
+      selector:
+        select:
+          multiple: true
+          custom_value: true
+          options:
+            - running
+            - pause
+            - prepare
+    addon:
+      name: Obico ML API add-on
+      selector:
+        addon: {}
+    stop_delay:
+      name: Stop delay (minutes)
+      description: How long all printers must stay inactive before the add-on is stopped.
+      default: 3
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: min
+
+mode: restart
+max_exceeded: silent
+
+variables:
+  printers: !input printers
+  active_states: !input active_states
+
+triggers:
+  - trigger: state
+    entity_id: !input printers
+  - trigger: homeassistant
+    event: start
+
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{ expand(printers) | selectattr('state', 'in', active_states) | list | count > 0 }}
+        sequence:
+          # Idempotent: starting an already running add-on may report an error, which is ignored.
+          - action: hassio.addon_start
+            continue_on_error: true
+            data:
+              addon: !input addon
+    default:
+      - delay:
+          minutes: !input stop_delay
+      - condition: template
+        value_template: >-
+          {{ expand(printers) | selectattr('state', 'in', active_states) | list | count == 0 }}
+      - action: hassio.addon_stop
+        continue_on_error: true
+        data:
+          addon: !input addon

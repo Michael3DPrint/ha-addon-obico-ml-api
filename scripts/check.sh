@@ -19,8 +19,23 @@ for k in ("name", "version", "slug", "arch", "schema", "options", "ports", "watc
     assert k in c, f"config.yaml missing {k}"
 assert c["slug"] == "obico_ml_api" and c["arch"] == ["amd64"]
 r = yaml.safe_load(open("repository.yaml")); assert r["name"] and r["url"]
+assert c["boot"] == "manual", "boot must stay manual (blueprint starts it on demand)"
 for w in ("ci", "upstream-bump"):
     yaml.safe_load(open(f".github/workflows/{w}.yml"))
+
+class L(yaml.SafeLoader):
+    pass
+used = set()
+def _input(loader, node):
+    used.add(loader.construct_scalar(node)); return "<input>"
+L.add_constructor("!input", _input)
+b = yaml.load(open("blueprints/obico_ml_on_demand.yaml"), Loader=L)
+bp = b["blueprint"]
+assert bp["domain"] == "automation"
+declared = set(bp["input"])
+assert used and used <= declared, f"undeclared inputs used: {used - declared}"
+assert declared <= used, f"declared but unused inputs: {declared - used}"
+assert b["mode"] == "restart" and b["triggers"] and b["actions"]
 print("ok")
 PY
 

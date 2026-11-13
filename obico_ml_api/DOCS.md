@@ -6,3 +6,5 @@
 
 Response: `{"detections": [[label, confidence, [x, y, w, h]], ...]}`; an empty list means nothing found.
 The first build downloads about 200 MB of model weights.
+
+The add-on does not start at boot. Start it by hand, or use the blueprint `blueprints/obico_ml_on_demand.yaml` to run it only while a printer is printing.
